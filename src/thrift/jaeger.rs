@@ -63,9 +63,9 @@ impl From<Tag> for Struct {
         Struct::new(fields)
     }
 }
-impl<'a> From<&'a rustracing::tag::Tag> for Tag {
-    fn from(f: &'a rustracing::tag::Tag) -> Self {
-        use rustracing::tag::TagValue;
+impl<'a> From<&'a cf_rustracing::tag::Tag> for Tag {
+    fn from(f: &'a cf_rustracing::tag::Tag) -> Self {
+        use cf_rustracing::tag::TagValue;
         let key = f.name().to_owned();
         match *f.value() {
             TagValue::Boolean(value) => Tag::Bool { key, value },
@@ -78,8 +78,8 @@ impl<'a> From<&'a rustracing::tag::Tag> for Tag {
         }
     }
 }
-impl<'a> From<&'a rustracing::log::LogField> for Tag {
-    fn from(f: &'a rustracing::log::LogField) -> Self {
+impl<'a> From<&'a cf_rustracing::log::LogField> for Tag {
+    fn from(f: &'a cf_rustracing::log::LogField) -> Self {
         Tag::String {
             key: f.name().to_owned(),
             value: f.value().to_owned(),
@@ -102,8 +102,8 @@ impl From<Log> for Struct {
         ))
     }
 }
-impl<'a> From<&'a rustracing::log::Log> for Log {
-    fn from(f: &'a rustracing::log::Log) -> Self {
+impl<'a> From<&'a cf_rustracing::log::Log> for Log {
+    fn from(f: &'a cf_rustracing::log::Log) -> Self {
         Log {
             timestamp: elapsed(UNIX_EPOCH, f.time()),
             fields: f.fields().iter().map(From::from).collect(),
@@ -254,7 +254,7 @@ impl<'a> From<&'a FinishedSpan> for Span {
             logs: f.logs().iter().map(From::from).collect(),
         };
         if let Some(id) = state.debug_id() {
-            span.tags.push(Tag::from(&rustracing::tag::Tag::new(
+            span.tags.push(Tag::from(&cf_rustracing::tag::Tag::new(
                 constants::JAEGER_DEBUG_HEADER,
                 id.to_owned(),
             )));

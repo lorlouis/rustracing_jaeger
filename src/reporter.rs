@@ -6,7 +6,7 @@ use crate::error;
 use crate::span::FinishedSpan;
 use crate::thrift::{agent, jaeger};
 use crate::Result;
-use rustracing::tag::Tag;
+use cf_rustracing::tag::Tag;
 use std::net::{SocketAddr, UdpSocket};
 use thrift_codec::message::Message;
 use thrift_codec::{BinaryEncode, CompactEncode};

@@ -38,43 +38,43 @@
 use crate::constants;
 use crate::error;
 use crate::{Error, ErrorKind, Result};
-use percent_encoding::percent_decode;
-use rustracing::carrier::{
+use cf_rustracing::carrier::{
     ExtractFromBinary, ExtractFromHttpHeader, ExtractFromTextMap, InjectToBinary,
     InjectToHttpHeader, InjectToTextMap, IterHttpHeaderFields, SetHttpHeaderField, TextMap,
 };
-use rustracing::sampler::BoxSampler;
+use cf_rustracing::sampler::BoxSampler;
+use percent_encoding::percent_decode;
 use std::fmt;
 use std::io::{Read, Write};
 use std::str::{self, FromStr};
 
 /// Span.
-pub type Span = rustracing::span::Span<SpanContextState>;
+pub type Span = cf_rustracing::span::Span<SpanContextState>;
 
 /// Span handle.
-pub type SpanHandle = rustracing::span::SpanHandle<SpanContextState>;
+pub type SpanHandle = cf_rustracing::span::SpanHandle<SpanContextState>;
 
 /// Finished span.
-pub type FinishedSpan = rustracing::span::FinishedSpan<SpanContextState>;
+pub type FinishedSpan = cf_rustracing::span::FinishedSpan<SpanContextState>;
 
 /// Span receiver.
-pub type SpanReceiver = rustracing::span::SpanReceiver<SpanContextState>;
+pub type SpanReceiver = cf_rustracing::span::SpanReceiver<SpanContextState>;
 
 /// Sender of finished spans to the destination channel.
-pub type SpanSender = rustracing::span::SpanSender<SpanContextState>;
+pub type SpanSender = cf_rustracing::span::SpanSender<SpanContextState>;
 
 /// Options for starting a span.
 pub type StartSpanOptions<'a> =
-    rustracing::span::StartSpanOptions<'a, BoxSampler<SpanContextState>, SpanContextState>;
+    cf_rustracing::span::StartSpanOptions<'a, BoxSampler<SpanContextState>, SpanContextState>;
 
 /// Candidate span for tracing.
-pub type CandidateSpan<'a> = rustracing::span::CandidateSpan<'a, SpanContextState>;
+pub type CandidateSpan<'a> = cf_rustracing::span::CandidateSpan<'a, SpanContextState>;
 
 /// Span context.
-pub type SpanContext = rustracing::span::SpanContext<SpanContextState>;
+pub type SpanContext = cf_rustracing::span::SpanContext<SpanContextState>;
 
 /// Span reference.
-pub type SpanReference = rustracing::span::SpanReference<SpanContextState>;
+pub type SpanReference = cf_rustracing::span::SpanReference<SpanContextState>;
 
 const FLAG_SAMPLED: u8 = 0b01;
 const FLAG_DEBUG: u8 = 0b10;
@@ -449,7 +449,7 @@ where
 mod test {
     use super::*;
     use crate::Tracer;
-    use rustracing::sampler::AllSampler;
+    use cf_rustracing::sampler::AllSampler;
     use std::collections::HashMap;
     use std::io::Cursor;
     use trackable::error::Failed;
@@ -483,10 +483,9 @@ mod test {
         assert_eq!(state.flags(), 0);
     }
 
-    #[test]
-    fn inject_to_text_map_works() -> TestResult {
-        let (span_tx, _span_rx) = crossbeam_channel::bounded(10);
-        let tracer = Tracer::with_sender(AllSampler, span_tx);
+    #[tokio::test]
+    async fn inject_to_text_map_works() -> TestResult {
+        let (tracer, _span_rx) = Tracer::new(AllSampler);
         let span = tracer.span("test").start();
         let context = track_assert_some!(span.context(), Failed);
 

@@ -20,7 +20,7 @@ Examples
 ### Basic Usage
 
 ```rust
-use rustracing::sampler::AllSampler;
+use cf_rustracing::sampler::AllSampler;
 use rustracing_jaeger::Tracer;
 use rustracing_jaeger::reporter::JaegerCompactReporter;
 

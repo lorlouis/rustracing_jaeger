@@ -3,10 +3,10 @@ extern crate trackable;
 
 use bytecodec::bytes::Utf8Encoder;
 use bytecodec::null::NullDecoder;
+use cf_rustracing::sampler::AllSampler;
 use fibers_http_server::{HandleRequest, Reply, Req, Res, ServerBuilder, Status};
 use futures::future::ok;
 use httpcodec::{BodyDecoder, BodyEncoder};
-use rustracing::sampler::AllSampler;
 use rustracing_jaeger::reporter::JaegerCompactReporter;
 use rustracing_jaeger::span::SpanContext;
 use rustracing_jaeger::Tracer;
@@ -43,13 +43,15 @@ impl HandleRequest for Hello {
     }
 }
 
-fn main() -> trackable::result::MainResult {
-    let (span_tx, span_rx) = crossbeam_channel::bounded(100);
-    let tracer = Tracer::with_sender(AllSampler, span_tx);
+#[tokio::main]
+async fn main() -> trackable::result::MainResult {
+    let (tracer, mut span_rx) = Tracer::new(AllSampler);
     let handler = Hello { tracer };
-    std::thread::spawn(move || {
+
+    tokio::spawn(async move {
         let reporter = track_try_unwrap!(JaegerCompactReporter::new("http_hello_server"));
-        for span in span_rx {
+
+        while let Some(span) = span_rx.recv().await {
             track_try_unwrap!(reporter.report(&[span]));
         }
     });
