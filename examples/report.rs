@@ -3,8 +3,8 @@ extern crate trackable;
 
 use cf_rustracing::sampler::AllSampler;
 use cf_rustracing::tag::Tag;
-use rustracing_jaeger::reporter::JaegerCompactReporter;
-use rustracing_jaeger::Tracer;
+use cf_rustracing_jaeger::reporter::JaegerCompactReporter;
+use cf_rustracing_jaeger::Tracer;
 use std::net::Ipv4Addr;
 use std::thread;
 use std::time::Duration;
@@ -31,7 +31,7 @@ async fn main() -> trackable::result::MainResult {
     let mut reporter = track!(
         JaegerCompactReporter::new(
             "example",
-            (Ipv4Addr::LOCALHOST, 0).into(),
+            (Ipv4Addr::LOCALHOST, 6831).into(),
             (Ipv4Addr::LOCALHOST, 0).into()
         )
         .await

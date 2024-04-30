@@ -153,6 +153,7 @@ impl JaegerReporter {
             process: self.process.clone(),
             spans: spans.iter().map(From::from).collect(),
         };
+
         let message = Message::from(agent::EmitBatchNotification { batch });
         let bytes = encode(message)?;
 

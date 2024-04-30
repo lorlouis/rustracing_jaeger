@@ -4,12 +4,12 @@ extern crate trackable;
 use bytecodec::bytes::Utf8Encoder;
 use bytecodec::null::NullDecoder;
 use cf_rustracing::sampler::AllSampler;
+use cf_rustracing_jaeger::reporter::JaegerCompactReporter;
+use cf_rustracing_jaeger::span::SpanContext;
+use cf_rustracing_jaeger::Tracer;
 use fibers_http_server::{HandleRequest, Reply, Req, Res, ServerBuilder, Status};
 use futures::future::ok;
 use httpcodec::{BodyDecoder, BodyEncoder};
-use rustracing_jaeger::reporter::JaegerCompactReporter;
-use rustracing_jaeger::span::SpanContext;
-use rustracing_jaeger::Tracer;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 
@@ -53,7 +53,7 @@ async fn main() -> trackable::result::MainResult {
         let reporter = track_try_unwrap!(
             JaegerCompactReporter::new(
                 "http_hello_server",
-                (Ipv4Addr::LOCALHOST, 0).into(),
+                (Ipv4Addr::LOCALHOST, 6831).into(),
                 (Ipv4Addr::LOCALHOST, 0).into()
             )
             .await

@@ -7,8 +7,8 @@
 //!
 //! ```
 //! use cf_rustracing::sampler::AllSampler;
-//! use rustracing_jaeger::Tracer;
-//! use rustracing_jaeger::reporter::JaegerCompactReporter;
+//! use cf_rustracing_jaeger::Tracer;
+//! use cf_rustracing_jaeger::reporter::JaegerCompactReporter;
 //! use std::net::Ipv4Addr;
 //!
 //! # #[tokio::main]
@@ -27,7 +27,7 @@
 //! // Reports this span to the local jaeger agent
 //! let reporter = JaegerCompactReporter::new(
 //!     "sample_service",
-//!     (Ipv4Addr::LOCALHOST, 0).into(),
+//!     (Ipv4Addr::LOCALHOST, 6831).into(),
 //!     (Ipv4Addr::LOCALHOST, 0).into(),
 //! )
 //! .await
@@ -73,7 +73,7 @@ mod tests {
 
         let mut reporter = JaegerCompactReporter::new(
             "sample_service",
-            (Ipv4Addr::LOCALHOST, 0).into(),
+            (Ipv4Addr::LOCALHOST, 6831).into(),
             (Ipv4Addr::LOCALHOST, 0).into(),
         )
         .await

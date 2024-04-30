@@ -9,7 +9,7 @@
 //!
 //! ```
 //! use std::collections::HashMap;
-//! use rustracing_jaeger::span::SpanContext;
+//! use cf_rustracing_jaeger::span::SpanContext;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Extraction
@@ -82,7 +82,7 @@ const FLAG_DEBUG: u8 = 0b10;
 /// Unique 128bit identifier of a trace.
 ///
 /// ```
-/// use rustracing_jaeger::span::TraceId;
+/// use cf_rustracing_jaeger::span::TraceId;
 ///
 /// let id = TraceId{ high: 0, low: 10 };
 /// assert_eq!(id.to_string(), "a");

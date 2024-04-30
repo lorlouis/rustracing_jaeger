@@ -1,10 +1,10 @@
 [package]
-name = "rustracing_jaeger"
-version = "0.9.0"
-authors = ["Takeru Ohta <phjgt308@gmail.com>"]
+name = "cf-rustracing-jaeger"
+version = "1.0.0"
+authors = ["Takeru Ohta <phjgt308@gmail.com>", "Cloudflare Inc."]
 description = "Jaeger client library created on top of rustracing"
-homepage = "https://github.com/sile/rustracing_jaeger"
-repository = "https://github.com/sile/rustracing_jaeger"
+homepage = "https://github.com/cloudflare/rustracing_jaeger"
+repository = "https://github.com/cloudflare/rustracing_jaeger"
 readme = "README.md"
 keywords = ["opentracing", "jaeger"]
 license = "MIT"
