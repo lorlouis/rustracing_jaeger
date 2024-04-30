@@ -5,6 +5,7 @@ use cf_rustracing::sampler::AllSampler;
 use cf_rustracing::tag::Tag;
 use rustracing_jaeger::reporter::JaegerCompactReporter;
 use rustracing_jaeger::Tracer;
+use std::net::Ipv4Addr;
 use std::thread;
 use std::time::Duration;
 
@@ -27,13 +28,21 @@ async fn main() -> trackable::result::MainResult {
         }
     }
 
-    let mut reporter = track!(JaegerCompactReporter::new("example"))?;
+    let mut reporter = track!(
+        JaegerCompactReporter::new(
+            "example",
+            (Ipv4Addr::LOCALHOST, 0).into(),
+            (Ipv4Addr::LOCALHOST, 0).into()
+        )
+        .await
+    )?;
+
     reporter.add_service_tag(Tag::new("hello", "world"));
 
     let mut spans = vec![];
 
     span_rx.recv_many(&mut spans, 10).await;
-    track!(reporter.report(&spans))?;
-    
+    reporter.report(&spans).await?;
+
     Ok(())
 }

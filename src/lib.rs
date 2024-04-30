@@ -9,9 +9,10 @@
 //! use cf_rustracing::sampler::AllSampler;
 //! use rustracing_jaeger::Tracer;
 //! use rustracing_jaeger::reporter::JaegerCompactReporter;
-//! 
+//! use std::net::Ipv4Addr;
+//!
 //! # #[tokio::main]
-//! # async fn main() { 
+//! # async fn main() {
 //! // Creates a tracer
 //! let (tracer, mut span_rx) = Tracer::new(AllSampler);
 //! {
@@ -24,8 +25,15 @@
 //! assert_eq!(span.operation_name(), "sample_op");
 //!
 //! // Reports this span to the local jaeger agent
-//! let reporter = JaegerCompactReporter::new("sample_service").unwrap();
-//! reporter.report(&[span]).unwrap();
+//! let reporter = JaegerCompactReporter::new(
+//!     "sample_service",
+//!     (Ipv4Addr::LOCALHOST, 0).into(),
+//!     (Ipv4Addr::LOCALHOST, 0).into(),
+//! )
+//! .await
+//! .unwrap();
+//!
+//! reporter.report(&[span]).await.unwrap();
 //! # }
 //! ```
 
@@ -51,6 +59,7 @@ mod tests {
     use crate::Tracer;
     use cf_rustracing::sampler::AllSampler;
     use cf_rustracing::tag::Tag;
+    use std::net::Ipv4Addr;
 
     #[tokio::test]
     async fn it_works() {
@@ -62,8 +71,15 @@ mod tests {
         let span = span_rx.recv().await.unwrap();
         assert_eq!(span.operation_name(), "it_works");
 
-        let mut reporter = JaegerCompactReporter::new("sample_service").unwrap();
+        let mut reporter = JaegerCompactReporter::new(
+            "sample_service",
+            (Ipv4Addr::LOCALHOST, 0).into(),
+            (Ipv4Addr::LOCALHOST, 0).into(),
+        )
+        .await
+        .unwrap();
+
         reporter.add_service_tag(Tag::new("foo", "bar"));
-        reporter.report(&[span]).unwrap();
+        reporter.report(&[span]).await.unwrap();
     }
 }

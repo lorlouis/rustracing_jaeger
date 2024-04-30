@@ -20,6 +20,7 @@ rand = "0.8.3"
 cf-rustracing = "1"
 thrift_codec = "0.2"
 trackable = "1"
+tokio = { version = "1", features = ["net"] }
 
 [target.'cfg(not(target_os="android"))'.dependencies]
 local-ip-address = "0.5.1"

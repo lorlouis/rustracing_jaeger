@@ -7,39 +7,24 @@ use crate::span::FinishedSpan;
 use crate::thrift::{agent, jaeger};
 use crate::Result;
 use cf_rustracing::tag::Tag;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use thrift_codec::message::Message;
 use thrift_codec::{BinaryEncode, CompactEncode};
+use tokio::net::UdpSocket;
 
 /// Reporter for the agent which accepts jaeger.thrift over compact thrift protocol.
 #[derive(Debug)]
 pub struct JaegerCompactReporter(JaegerReporter);
 impl JaegerCompactReporter {
     /// Makes a new `JaegerCompactReporter` instance.
-    ///
-    /// # Errors
-    ///
-    /// If the UDP socket used to report spans can not be bound to `0.0.0.0:0`,
-    /// it will return an error which has the kind `ErrorKind::Other`.
-    pub fn new(service_name: &str) -> Result<Self> {
-        let inner = track!(JaegerReporter::new(service_name, 6831))?;
+    pub async fn new(
+        service_name: &str,
+        agent_addr: SocketAddr,
+        reporter_addr: SocketAddr,
+    ) -> Result<Self> {
+        let inner = JaegerReporter::new(service_name, agent_addr, reporter_addr).await?;
+
         Ok(JaegerCompactReporter(inner))
-    }
-
-    /// Sets the address of the report destination agent to `addr`.
-    ///
-    /// The default address is `127.0.0.1:6831`.
-    ///
-    /// Note that you may also need to call `set_reporter_addr` if the `addr` is IPv6 or non localhost address.
-    pub fn set_agent_addr(&mut self, addr: SocketAddr) {
-        self.0.set_agent_addr(addr);
-    }
-
-    /// Sets the address to which the reporter bind.
-    ///
-    /// The default address is `127.0.0.1:0`.
-    pub fn set_reporter_addr(&mut self, addr: SocketAddr) -> Result<()> {
-        track!(self.0.set_reporter_addr(addr))
     }
 
     /// Adds `tag` to this service.
@@ -56,14 +41,16 @@ impl JaegerCompactReporter {
     ///
     /// If it fails to send the encoded binary to the jaeger agent via UDP,
     /// this method will return an error which has the kind `ErrorKind::Other`.
-    pub fn report(&self, spans: &[FinishedSpan]) -> Result<()> {
-        track!(self.0.report(spans, |message| {
-            let mut bytes = Vec::new();
-            track!(message
-                .compact_encode(&mut bytes)
-                .map_err(error::from_thrift_error))?;
-            Ok(bytes)
-        }))
+    pub async fn report(&self, spans: &[FinishedSpan]) -> Result<()> {
+        self.0
+            .report(spans, |message| {
+                let mut bytes = Vec::new();
+                message
+                    .compact_encode(&mut bytes)
+                    .map_err(error::from_thrift_error)?;
+                Ok(bytes)
+            })
+            .await
     }
 }
 
@@ -72,30 +59,14 @@ impl JaegerCompactReporter {
 pub struct JaegerBinaryReporter(JaegerReporter);
 impl JaegerBinaryReporter {
     /// Makes a new `JaegerBinaryReporter` instance.
-    ///
-    /// # Errors
-    ///
-    /// If the UDP socket used to report spans can not be bound to `0.0.0.0:0`,
-    /// it will return an error which has the kind `ErrorKind::Other`.
-    pub fn new(service_name: &str) -> Result<Self> {
-        let inner = track!(JaegerReporter::new(service_name, 6832))?;
+    pub async fn new(
+        service_name: &str,
+        agent_addr: SocketAddr,
+        reporter_addr: SocketAddr,
+    ) -> Result<Self> {
+        let inner = JaegerReporter::new(service_name, agent_addr, reporter_addr).await?;
+
         Ok(JaegerBinaryReporter(inner))
-    }
-
-    /// Sets the address of the report destination agent to `addr`.
-    ///
-    /// The default address is `127.0.0.1:6832`.
-    ///
-    /// Note that you may also need to call `set_reporter_addr` if the `addr` is IPv6 or non localhost address.
-    pub fn set_agent_addr(&mut self, addr: SocketAddr) {
-        self.0.set_agent_addr(addr);
-    }
-
-    /// Sets the address to which the report bind.
-    ///
-    /// The default address is `127.0.0.1:0`.
-    pub fn set_reporter_addr(&mut self, addr: SocketAddr) -> Result<()> {
-        track!(self.0.set_reporter_addr(addr))
     }
 
     /// Adds `tag` to this service.
@@ -112,65 +83,69 @@ impl JaegerBinaryReporter {
     ///
     /// If it fails to send the encoded binary to the jaeger agent via UDP,
     /// this method will return an error which has the kind `ErrorKind::Other`.
-    pub fn report(&self, spans: &[FinishedSpan]) -> Result<()> {
-        track!(self.0.report(spans, |message| {
-            let mut bytes = Vec::new();
-            track!(message
-                .binary_encode(&mut bytes)
-                .map_err(error::from_thrift_error))?;
-            Ok(bytes)
-        }))
+    pub async fn report(&self, spans: &[FinishedSpan]) -> Result<()> {
+        self.0
+            .report(spans, |message| {
+                let mut bytes = Vec::new();
+                message
+                    .binary_encode(&mut bytes)
+                    .map_err(error::from_thrift_error)?;
+                Ok(bytes)
+            })
+            .await
     }
 }
 
 #[derive(Debug)]
 struct JaegerReporter {
     socket: UdpSocket,
-    agent: SocketAddr,
+    agent_addr: SocketAddr,
     process: jaeger::Process,
 }
+
 impl JaegerReporter {
-    fn new(service_name: &str, port: u16) -> Result<Self> {
-        let agent = SocketAddr::from(([127, 0, 0, 1], port));
-        let socket =
-            track!(UdpSocket::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-                .map_err(error::from_io_error))?;
+    async fn new(
+        service_name: &str,
+        agent_addr: SocketAddr,
+        reporter_addr: SocketAddr,
+    ) -> Result<Self> {
+        let socket = UdpSocket::bind(reporter_addr)
+            .await
+            .map_err(error::from_io_error)?;
+
         let process = jaeger::Process {
             service_name: service_name.to_owned(),
             tags: Vec::new(),
         };
-        let mut this = JaegerReporter {
+
+        let mut reporter = JaegerReporter {
             socket,
-            agent,
+            agent_addr,
             process,
         };
 
-        this.add_service_tag(Tag::new(
+        reporter.add_service_tag(Tag::new(
             constants::JAEGER_CLIENT_VERSION_TAG_KEY,
             constants::JAEGER_CLIENT_VERSION,
         ));
+
         if let Ok(Ok(hostname)) = hostname::get().map(|h| h.into_string()) {
-            this.add_service_tag(Tag::new(constants::TRACER_HOSTNAME_TAG_KEY, hostname));
+            reporter.add_service_tag(Tag::new(constants::TRACER_HOSTNAME_TAG_KEY, hostname));
         }
 
         #[cfg(not(target_os = "android"))]
         if let Ok(local_ip_address) = local_ip_address::local_ip().map(|h| h.to_string()) {
-            this.add_service_tag(Tag::new(constants::TRACER_IP_TAG_KEY, local_ip_address));
+            reporter.add_service_tag(Tag::new(constants::TRACER_IP_TAG_KEY, local_ip_address));
         }
 
-        Ok(this)
+        Ok(reporter)
     }
-    fn set_agent_addr(&mut self, addr: SocketAddr) {
-        self.agent = addr;
-    }
-    fn set_reporter_addr(&mut self, addr: SocketAddr) -> Result<()> {
-        self.socket = track!(UdpSocket::bind(addr).map_err(error::from_io_error))?;
-        Ok(())
-    }
+
     fn add_service_tag(&mut self, tag: Tag) {
         self.process.tags.push((&tag).into());
     }
-    fn report<F>(&self, spans: &[FinishedSpan], encode: F) -> Result<()>
+
+    async fn report<F>(&self, spans: &[FinishedSpan], encode: F) -> Result<()>
     where
         F: FnOnce(Message) -> Result<Vec<u8>>,
     {
@@ -179,11 +154,13 @@ impl JaegerReporter {
             spans: spans.iter().map(From::from).collect(),
         };
         let message = Message::from(agent::EmitBatchNotification { batch });
-        let bytes = track!(encode(message))?;
-        track!(self
-            .socket
-            .send_to(&bytes, self.agent)
-            .map_err(error::from_io_error))?;
+        let bytes = encode(message)?;
+
+        self.socket
+            .send_to(&bytes, self.agent_addr)
+            .await
+            .map_err(error::from_io_error)?;
+
         Ok(())
     }
 }

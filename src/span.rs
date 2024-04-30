@@ -126,15 +126,15 @@ impl FromStr for TraceId {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         if s.len() <= 16 {
-            let low = track!(u64::from_str_radix(s, 16).map_err(error::from_parse_int_error,))?;
+            let low = u64::from_str_radix(s, 16).map_err(error::from_parse_int_error)?;
             Ok(TraceId { high: 0, low })
         } else if s.len() <= 32 {
             let (high, low) = s.as_bytes().split_at(s.len() - 16);
-            let high = track!(str::from_utf8(high).map_err(error::from_utf8_error))?;
-            let high = track!(u64::from_str_radix(high, 16).map_err(error::from_parse_int_error,))?;
+            let high = str::from_utf8(high).map_err(error::from_utf8_error)?;
+            let high = u64::from_str_radix(high, 16).map_err(error::from_parse_int_error)?;
 
-            let low = track!(str::from_utf8(low).map_err(error::from_utf8_error))?;
-            let low = track!(u64::from_str_radix(low, 16).map_err(error::from_parse_int_error,))?;
+            let low = str::from_utf8(low).map_err(error::from_utf8_error)?;
+            let low = u64::from_str_radix(low, 16).map_err(error::from_parse_int_error)?;
             Ok(TraceId { high, low })
         } else {
             track_panic!(ErrorKind::InvalidInput, "s={:?}", s)
@@ -290,12 +290,11 @@ impl FromStr for SpanContextState {
                 track_assert_some!(tokens.next(), ErrorKind::InvalidInput)
             };
         }
-        let trace_id = track!(token!().parse())?;
-        let span_id =
-            track!(u64::from_str_radix(token!(), 16).map_err(error::from_parse_int_error))?;
+        let trace_id = token!().parse()?;
+        let span_id = u64::from_str_radix(token!(), 16).map_err(error::from_parse_int_error)?;
         let _parent_span_id =
-            track!(u64::from_str_radix(token!(), 16).map_err(error::from_parse_int_error))?;
-        let flags = track!(u8::from_str_radix(token!(), 16).map_err(error::from_parse_int_error))?;
+            u64::from_str_radix(token!(), 16).map_err(error::from_parse_int_error)?;
+        let flags = u8::from_str_radix(token!(), 16).map_err(error::from_parse_int_error)?;
 
         Ok(SpanContextState {
             trace_id,
@@ -336,7 +335,7 @@ impl<T: TextMap> ExtractFromTextMap<T> for SpanContextState {
         if let Some(v) = carrier.get(constants::JAEGER_DEBUG_HEADER) {
             map.insert(constants::JAEGER_DEBUG_HEADER, v);
         }
-        track!(Self::extract_from_http_header(&map))
+        Self::extract_from_http_header(&map)
     }
 }
 impl<T> InjectToHttpHeader<T> for SpanContextState
@@ -345,10 +344,10 @@ where
 {
     fn inject_to_http_header(context: &SpanContext, carrier: &mut T) -> Result<()> {
         // TODO: Support baggage items
-        track!(carrier.set_http_header_field(
+        carrier.set_http_header_field(
             constants::TRACER_CONTEXT_HEADER_NAME,
             &context.state().to_string(),
-        ))?;
+        )?;
         Ok(())
     }
 }
@@ -363,10 +362,10 @@ where
         for (name, value) in carrier.fields() {
             if name.eq_ignore_ascii_case(constants::TRACER_CONTEXT_HEADER_NAME) {
                 let value = percent_decode(value);
-                let value = track!(value.decode_utf8().map_err(error::from_utf8_error))?;
-                state = Some(track!(value.parse())?);
+                let value = value.decode_utf8().map_err(error::from_utf8_error)?;
+                state = Some(value.parse()?);
             } else if name.eq_ignore_ascii_case(constants::JAEGER_DEBUG_HEADER) {
-                let value = track!(str::from_utf8(value).map_err(error::from_utf8_error))?;
+                let value = str::from_utf8(value).map_err(error::from_utf8_error)?;
                 debug_id = Some(value.to_owned());
             }
         }
@@ -397,16 +396,16 @@ where
         let u32buf: [u8; 4] = [0; 4]; // TODO: Support baggage items
         let u8buf: [u8; 1] = [context.state().flags];
 
-        track!(carrier.write(&u64buf).map_err(error::from_io_error))?;
+        carrier.write(&u64buf).map_err(error::from_io_error)?;
         u64buf = context.state().trace_id.low.to_be_bytes();
-        track!(carrier.write(&u64buf).map_err(error::from_io_error))?;
+        carrier.write(&u64buf).map_err(error::from_io_error)?;
         u64buf = context.state().span_id.to_be_bytes();
-        track!(carrier.write(&u64buf).map_err(error::from_io_error))?;
+        carrier.write(&u64buf).map_err(error::from_io_error)?;
         // parent_span_id attribute is obsolete, write zeros.
         u64buf = [0; 8];
-        track!(carrier.write(&u64buf).map_err(error::from_io_error))?;
-        track!(carrier.write(&u8buf).map_err(error::from_io_error))?;
-        track!(carrier.write(&u32buf).map_err(error::from_io_error))?;
+        carrier.write(&u64buf).map_err(error::from_io_error)?;
+        carrier.write(&u8buf).map_err(error::from_io_error)?;
+        carrier.write(&u32buf).map_err(error::from_io_error)?;
 
         Ok(())
     }
@@ -421,15 +420,23 @@ where
         let mut u64buf: [u8; 8] = [0; 8];
         let mut u8buf: [u8; 1] = [0; 1];
 
-        track!(carrier.read(&mut u64buf[..]).map_err(error::from_io_error))?;
+        carrier
+            .read(&mut u64buf[..])
+            .map_err(error::from_io_error)?;
         let trace_id_high = u64::from_be_bytes(u64buf);
-        track!(carrier.read(&mut u64buf[..]).map_err(error::from_io_error))?;
+        carrier
+            .read(&mut u64buf[..])
+            .map_err(error::from_io_error)?;
         let trace_id_low = u64::from_be_bytes(u64buf);
-        track!(carrier.read(&mut u64buf[..]).map_err(error::from_io_error))?;
+        carrier
+            .read(&mut u64buf[..])
+            .map_err(error::from_io_error)?;
         let span_id = u64::from_be_bytes(u64buf);
-        track!(carrier.read(&mut u64buf[..]).map_err(error::from_io_error))?;
+        carrier
+            .read(&mut u64buf[..])
+            .map_err(error::from_io_error)?;
         // parent_span_id attribute is obsolete. Ignore storing it.
-        track!(carrier.read(&mut u8buf[..]).map_err(error::from_io_error))?;
+        carrier.read(&mut u8buf[..]).map_err(error::from_io_error)?;
         let flags = u8buf[0];
 
         let state = SpanContextState {
@@ -490,7 +497,7 @@ mod test {
         let context = track_assert_some!(span.context(), Failed);
 
         let mut map = HashMap::new();
-        track!(context.inject_to_text_map(&mut map))?;
+        context.inject_to_text_map(&mut map)?;
         assert!(map.contains_key(constants::TRACER_CONTEXT_HEADER_NAME));
 
         Ok(())
@@ -503,7 +510,7 @@ mod test {
             constants::TRACER_CONTEXT_HEADER_NAME.to_string(),
             "6309ab92c95468edea0dc1a9772ae2dc:409423a204bc17a8:0:1".to_string(),
         );
-        let context = track!(SpanContext::extract_from_text_map(&map))?;
+        let context = SpanContext::extract_from_text_map(&map)?;
         let context = track_assert_some!(context, Failed);
         let trace_id = context.state().trace_id();
         assert_eq!(trace_id.to_string(), "6309ab92c95468edea0dc1a9772ae2dc");
@@ -520,7 +527,7 @@ mod test {
             constants::TRACER_CONTEXT_HEADER_NAME.to_string(),
             "6309ab92c95468edea0dc1a9772ae2dc%3A409423a204bc17a8%3A0%3A1".to_string(),
         );
-        let context = track!(SpanContext::extract_from_text_map(&map))?;
+        let context = SpanContext::extract_from_text_map(&map)?;
         let context = track_assert_some!(context, Failed);
         let trace_id = context.state().trace_id();
         assert_eq!(trace_id.to_string(), "6309ab92c95468edea0dc1a9772ae2dc");
@@ -535,7 +542,7 @@ mod test {
             constants::JAEGER_DEBUG_HEADER.to_string(),
             "abcdef".to_string(),
         );
-        let context = track!(SpanContext::extract_from_text_map(&map))?;
+        let context = SpanContext::extract_from_text_map(&map)?;
         let context = track_assert_some!(context, Failed);
         let debug_id = context.state().debug_id();
         assert_eq!(debug_id, Some("abcdef"));
@@ -554,7 +561,7 @@ mod test {
         let context = track_assert_some!(span.context(), Failed);
 
         let mut span_buf: Cursor<Vec<u8>> = Cursor::new(vec![]);
-        track!(context.clone().inject_to_binary(&mut span_buf))?;
+        context.clone().inject_to_binary(&mut span_buf)?;
 
         // deliberately convert io::Cursor<Vec<u8>> to Vec<u8> and re-read elements
         let sbv = span_buf.get_ref().to_vec();
@@ -589,7 +596,7 @@ mod test {
             0, 0, 0, 0, // baggage item length=0
         ]);
 
-        let context = track!(SpanContext::extract_from_binary(&mut span_buf))?;
+        let context = SpanContext::extract_from_binary(&mut span_buf)?;
         let context = track_assert_some!(context, Failed);
         assert_eq!(
             context.state().trace_id().to_string(),
