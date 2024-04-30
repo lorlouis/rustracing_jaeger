@@ -3,14 +3,15 @@ extern crate trackable;
 
 use bytecodec::bytes::Utf8Encoder;
 use bytecodec::null::NullDecoder;
+use cf_rustracing::sampler::AllSampler;
+use cf_rustracing_jaeger::reporter::JaegerCompactReporter;
+use cf_rustracing_jaeger::span::SpanContext;
+use cf_rustracing_jaeger::Tracer;
 use fibers_http_server::{HandleRequest, Reply, Req, Res, ServerBuilder, Status};
 use futures::future::ok;
 use httpcodec::{BodyDecoder, BodyEncoder};
-use rustracing::sampler::AllSampler;
-use rustracing_jaeger::reporter::JaegerCompactReporter;
-use rustracing_jaeger::span::SpanContext;
-use rustracing_jaeger::Tracer;
 use std::collections::HashMap;
+use std::net::Ipv4Addr;
 
 struct Hello {
     tracer: Tracer,
@@ -43,20 +44,29 @@ impl HandleRequest for Hello {
     }
 }
 
-fn main() -> trackable::result::MainResult {
-    let (span_tx, span_rx) = crossbeam_channel::bounded(100);
-    let tracer = Tracer::with_sender(AllSampler, span_tx);
+#[tokio::main]
+async fn main() -> trackable::result::MainResult {
+    let (tracer, mut span_rx) = Tracer::new(AllSampler);
     let handler = Hello { tracer };
-    std::thread::spawn(move || {
-        let reporter = track_try_unwrap!(JaegerCompactReporter::new("http_hello_server"));
-        for span in span_rx {
-            track_try_unwrap!(reporter.report(&[span]));
+
+    tokio::spawn(async move {
+        let reporter = track_try_unwrap!(
+            JaegerCompactReporter::new(
+                "http_hello_server",
+                (Ipv4Addr::LOCALHOST, 6831).into(),
+                (Ipv4Addr::LOCALHOST, 0).into()
+            )
+            .await
+        );
+
+        while let Some(span) = span_rx.recv().await {
+            track_try_unwrap!(reporter.report(&[span]).await);
         }
     });
 
     let mut builder = ServerBuilder::new(track_any_err!("127.0.0.1:8081".parse())?);
-    track!(builder.add_handler(handler))?;
+    builder.add_handler(handler)?;
     let server = builder.finish(fibers_global::handle());
-    track!(fibers_global::execute(server))?;
+    fibers_global::execute(server)?;
     Ok(())
 }

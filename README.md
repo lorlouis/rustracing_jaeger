@@ -1,18 +1,16 @@
-rustracing_jaeger
+cf-rustracing-jaeger
 =================
 
-[![Crates.io: rustracing_jaeger](https://img.shields.io/crates/v/rustracing_jaeger.svg)](https://crates.io/crates/rustracing_jaeger)
-[![Documentation](https://docs.rs/rustracing_jaeger/badge.svg)](https://docs.rs/rustracing_jaeger)
-[![Actions Status](https://github.com/sile/rustracing_jaeger/workflows/CI/badge.svg)](https://github.com/sile/rustracing_jaeger/actions)
-[![Coverage Status](https://coveralls.io/repos/github/sile/rustracing_jaeger/badge.svg?branch=master)](https://coveralls.io/github/sile/rustracing_jaeger?branch=master)
+[![Crates.io: rustracing_jaeger](https://img.shields.io/crates/v/cf-rustracing-jaeger.svg)](https://crates.io/crates/cf-rustracing-jaeger)
+[![Documentation](https://docs.rs/cf-rustracing-jaeger/badge.svg)](https://docs.rs/cf-rustracing-jaeger)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Jaeger][jaeger] client library created on top of [rustracing].
+[Jaeger][jaeger] client library created on top of [cf-rustracing].
 
 [jaeger]: https://github.com/jaegertracing/jaeger
-[rustracing]: https://crates.io/crates/rustracing
+[cf-rustracing]: https://crates.io/crates/cf-rustracing
 
-[Documentation](https://docs.rs/rustracing_jaeger)
+[Documentation](https://docs.rs/cf-rustracing-jaeger)
 
 Examples
 --------
@@ -20,25 +18,35 @@ Examples
 ### Basic Usage
 
 ```rust
-use rustracing::sampler::AllSampler;
-use rustracing_jaeger::Tracer;
-use rustracing_jaeger::reporter::JaegerCompactReporter;
+use cf_rustracing::sampler::AllSampler;
+use cf_rustracing_jaeger::Tracer;
+use cf_rustracing_jaeger::reporter::JaegerCompactReporter;
+use std::net::Ipv4Addr;
 
-// Creates a tracer
-let (span_tx, span_rx) = crossbeam_channel::bounded(10);
-let tracer = Tracer::with_sender(AllSampler, span_tx);
-{
-    let span = tracer.span("sample_op").start();
-    // Do something
-
-} // The dropped span will be sent to `span_rx`
-
-let span = span_rx.try_recv().unwrap();
-assert_eq!(span.operation_name(), "sample_op");
-
-// Reports this span to the local jaeger agent
-let reporter = JaegerCompactReporter::new("sample_service").unwrap();
-reporter.report(&[span]).unwrap();
+#[tokio::main]
+async fn main() {
+    // Creates a tracer
+    let (tracer, mut span_rx) = Tracer::new(AllSampler);
+    {
+        let span = tracer.span("sample_op").start();
+        // Do something
+    
+    } // The dropped span will be sent to `span_rx`
+    
+    let span = span_rx.recv().await.unwrap();
+    assert_eq!(span.operation_name(), "sample_op");
+    
+    // Reports this span to the local jaeger agent
+    let reporter = JaegerCompactReporter::new(
+        "sample_service",
+        (Ipv4Addr::LOCALHOST, 6831).into(),
+        (Ipv4Addr::LOCALHOST, 0).into(),
+    )
+    .await
+    .unwrap();
+    
+    reporter.report(&[span]).await.unwrap();
+}
 ```
 
 ### Executes `report.rs` example
