@@ -27,7 +27,7 @@ impl JaegerCompactReporter {
         Ok(JaegerCompactReporter(inner))
     }
 
-    /// Makes a new `JaegerCompactReporter` with the provided UDP socket transport.
+    /// Makes a new [`JaegerCompactReporter`] with the provided UDP socket transport.
     pub fn new_with_transport(
         service_name: &str,
         agent_addr: SocketAddr,
