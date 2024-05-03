@@ -27,6 +27,17 @@ impl JaegerCompactReporter {
         Ok(JaegerCompactReporter(inner))
     }
 
+    /// Makes a new [`JaegerCompactReporter`] with the provided UDP socket transport.
+    pub fn new_with_transport(
+        service_name: &str,
+        agent_addr: SocketAddr,
+        socket: UdpSocket,
+    ) -> Result<Self> {
+        let inner = JaegerReporter::new_with_transport(service_name, agent_addr, socket)?;
+
+        Ok(JaegerCompactReporter(inner))
+    }
+
     /// Adds `tag` to this service.
     pub fn add_service_tag(&mut self, tag: Tag) {
         self.0.add_service_tag(tag);
@@ -65,6 +76,17 @@ impl JaegerBinaryReporter {
         reporter_addr: SocketAddr,
     ) -> Result<Self> {
         let inner = JaegerReporter::new(service_name, agent_addr, reporter_addr).await?;
+
+        Ok(JaegerBinaryReporter(inner))
+    }
+
+    /// Makes a new `JaegerBinaryReporter` with the provided UDP socket transport.
+    pub fn new_with_transport(
+        service_name: &str,
+        agent_addr: SocketAddr,
+        socket: UdpSocket,
+    ) -> Result<Self> {
+        let inner = JaegerReporter::new_with_transport(service_name, agent_addr, socket)?;
 
         Ok(JaegerBinaryReporter(inner))
     }
@@ -113,6 +135,14 @@ impl JaegerReporter {
             .await
             .map_err(error::from_io_error)?;
 
+        Self::new_with_transport(service_name, agent_addr, socket)
+    }
+
+    fn new_with_transport(
+        service_name: &str,
+        agent_addr: SocketAddr,
+        socket: UdpSocket,
+    ) -> Result<Self> {
         let process = jaeger::Process {
             service_name: service_name.to_owned(),
             tags: Vec::new(),
