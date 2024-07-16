@@ -221,6 +221,16 @@ pub struct SpanContextState {
     debug_id: String,
 }
 impl SpanContextState {
+    /// Creates new [`SpanContextState`].
+    pub fn new(trace_id: TraceId, span_id: u64, flags: u8, debug_id: String) -> Self {
+        Self {
+            trace_id,
+            span_id,
+            flags,
+            debug_id,
+        }
+    }
+
     /// Returns the trace identifier of this span.
     pub fn trace_id(&self) -> TraceId {
         self.trace_id
